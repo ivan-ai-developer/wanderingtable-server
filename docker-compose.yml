@@ -1,0 +1,24 @@
+volumes:
+  wandering_table:
+
+services:
+  wandering_table_db:
+    image: postgres:15
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=pass
+      - POSTGRES_DB=postgres
+    volumes:
+      - wandering_table:/var/lib/postgresql/data
+
+  wandering_table_app:
+    build: .
+    restart: always
+    ports:
+      - "8050:8050"
+    environment:
+      - JWT_SECRET_BASE64=${JWT_SECRET_BASE64}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://wandering_table_db:5432/postgres
+    depends_on:
+      - wandering_table_db
