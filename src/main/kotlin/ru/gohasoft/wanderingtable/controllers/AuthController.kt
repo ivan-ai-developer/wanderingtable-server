@@ -1,18 +1,23 @@
 package ru.gohasoft.wanderingtable.controllers
 
 import ru.gohasoft.wanderingtable.security.AuthService
+import ru.gohasoft.wanderingtable.security.RegisterRateLimiter
+import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.Pattern
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 @RequestMapping("/auth")
 class AuthController(
-    private val authService: AuthService
+    private val authService: AuthService,
+    private val registerRateLimiter: RegisterRateLimiter
 ) {
 
     data class AuthRequest(
@@ -31,8 +36,15 @@ class AuthController(
 
     @PostMapping("/register")
     fun register(
-        @Valid @RequestBody body: AuthRequest
+        @Valid @RequestBody body: AuthRequest,
+        request: HttpServletRequest
     ) {
+        if (!registerRateLimiter.tryAcquire(request.clientIp())) {
+            throw ResponseStatusException(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "Too many registration attempts. Try again later."
+            )
+        }
         authService.register(body.email, body.password)
     }
 
@@ -49,4 +61,12 @@ class AuthController(
     ): AuthService.TokenPair {
         return authService.refresh(body.refreshToken)
     }
+}
+
+private fun HttpServletRequest.clientIp(): String {
+    return getHeader("X-Forwarded-For")
+        ?.substringBefore(",")
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: remoteAddr
 }

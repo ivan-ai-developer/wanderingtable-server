@@ -7,7 +7,7 @@ import java.time.Instant
 
 @Entity
 @Table(name = "notes")
-data class Note(
+data class NewsNote(
     @Id val id: ObjectId = ObjectId.get(),
     val title: String,
     val content: String,
