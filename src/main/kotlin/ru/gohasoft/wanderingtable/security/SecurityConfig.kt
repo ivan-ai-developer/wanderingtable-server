@@ -3,6 +3,7 @@ package ru.gohasoft.wanderingtable.security
 import jakarta.servlet.DispatcherType
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
@@ -25,6 +26,9 @@ class SecurityConfig(
                     .requestMatchers("/")
                     .permitAll()
                     .requestMatchers("/auth/**")
+                    .permitAll()
+                    // Лента новостей клуба доступна без авторизации; /notes/my и запись — нет.
+                    .requestMatchers(HttpMethod.GET, "/notes")
                     .permitAll()
                     .dispatcherTypeMatchers(
                         DispatcherType.ERROR,

@@ -1,96 +1,60 @@
 package ru.gohasoft.wanderingtable.controllers
 
-import ru.gohasoft.wanderingtable.controllers.NewsNoteController.NewsNoteResponse
-import ru.gohasoft.wanderingtable.database.model.NewsNote
-import ru.gohasoft.wanderingtable.database.repository.NewsNoteRepository
 import jakarta.validation.Valid
-import jakarta.validation.constraints.NotBlank
+import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Sort
+import org.springframework.data.web.PageableDefault
 import org.springframework.http.HttpStatus
-import org.springframework.web.bind.annotation.*
-import org.springframework.web.server.ResponseStatusException
+import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
+import org.springframework.web.bind.annotation.RestController
+import ru.gohasoft.wanderingtable.controllers.dto.NewsNoteRequest
+import ru.gohasoft.wanderingtable.controllers.dto.NewsNoteResponse
+import ru.gohasoft.wanderingtable.controllers.dto.PageResponse
+import ru.gohasoft.wanderingtable.controllers.dto.toResponse
 import ru.gohasoft.wanderingtable.controllers.utils.getCurrentObjectId
 import ru.gohasoft.wanderingtable.database.model.ObjectId
-import java.time.Instant
-import kotlin.jvm.optionals.getOrNull
-
-// POST http://localhost:8085/notes
-// GET http://localhost:8085/notes?ownerId=123
-// DELETE http://localhost:8085/notes/123
+import ru.gohasoft.wanderingtable.service.NewsNoteService
 
 @RestController
 @RequestMapping("/notes")
 class NewsNoteController(
-    private val newsNoteRepository: NewsNoteRepository
+    private val newsNoteService: NewsNoteService
 ) {
 
-    data class NewsNoteRequest(
-        val id: String?,
-        @field:NotBlank(message = "Title can't be blank.")
-        val title: String,
-        val content: String,
-    )
+    /** Лента новостей клуба. Публично: новости читают и незарегистрированные посетители. */
+    @GetMapping
+    fun findAll(
+        @PageableDefault(size = 20, sort = ["createdAt"], direction = Sort.Direction.DESC)
+        pageable: Pageable
+    ): PageResponse<NewsNoteResponse> =
+        newsNoteService.findAll(pageable).toResponse { it.toResponse() }
 
-    data class NewsNoteResponse(
-        val id: String,
-        val title: String,
-        val content: String,
-        val createdAt: Instant
-    )
+    /** Новости, созданные текущим пользователем. */
+    @GetMapping("/my")
+    fun findMine(
+        @PageableDefault(size = 20, sort = ["createdAt"], direction = Sort.Direction.DESC)
+        pageable: Pageable
+    ): PageResponse<NewsNoteResponse> =
+        newsNoteService.findByOwner(getCurrentObjectId(), pageable).toResponse { it.toResponse() }
 
     @PostMapping
-    fun save(
-        @Valid @RequestBody body: NewsNoteRequest
-    ): NewsNoteResponse {
-        val ownerId = getCurrentObjectId(ID_ERROR_MESSAGE)
-        val newsNoteId = body.id?.let(::ObjectId)
-        val oldNewsNote = newsNoteRepository.findById(newsNoteId).getOrNull()
-        if (oldNewsNote != null && oldNewsNote.ownerId != ownerId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed to modify this note.")
-        }
-        val newsNote = newsNoteRepository.save(
-            oldNewsNote?.copy(
-                title = body.title,
-                content = body.content
-            ) ?: NewsNote(
-                id = newsNoteId ?: ObjectId.get(),
-                title = body.title,
-                content = body.content,
-                createdAt = Instant.now(),
-                ownerId = ownerId
-            )
-        )
-        return newsNote.toResponse()
-    }
+    fun save(@Valid @RequestBody body: NewsNoteRequest): NewsNoteResponse =
+        newsNoteService.save(
+            ownerId = getCurrentObjectId(),
+            id = body.id,
+            title = body.title,
+            content = body.content
+        ).toResponse()
 
-    @GetMapping
-    fun findByOwnerId(): List<NewsNoteResponse> {
-        val ownerId = getCurrentObjectId(ID_ERROR_MESSAGE)
-        return newsNoteRepository.findByOwnerId(ownerId).map {
-            it.toResponse()
-        }
-    }
-
-    @DeleteMapping(path = ["/{id}"])
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteById(@PathVariable id: String) {
-        val note = newsNoteRepository.findById(ObjectId(id)).orElseThrow {
-            IllegalArgumentException("Note not found")
-        }
-        val ownerId = getCurrentObjectId(ID_ERROR_MESSAGE)
-        if(note.ownerId == ownerId) {
-            newsNoteRepository.deleteById(ObjectId(id))
-        }
+        newsNoteService.deleteById(getCurrentObjectId(), ObjectId(id))
     }
-
-    companion object {
-        private const val ID_ERROR_MESSAGE = "Note ownerId not right value"
-    }
-}
-
-private fun NewsNote.toResponse(): NewsNoteResponse {
-    return NewsNoteResponse(
-        id = id.value,
-        title = title,
-        content = content,
-        createdAt = createdAt
-    )
 }

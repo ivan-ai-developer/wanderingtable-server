@@ -9,6 +9,10 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=pass
       - POSTGRES_DB=postgres
+    # Порт публикуется только на localhost: без этого `./gradlew bootRun` на хосте
+    # не мог подключиться к контейнеру, хотя документация утверждала обратное.
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - wandering_table:/var/lib/postgresql/data
 
@@ -19,6 +23,9 @@ services:
       - "8050:8050"
     environment:
       - JWT_SECRET_BASE64=${JWT_SECRET_BASE64}
+      # Первый заведующий клуба: роли выдаёт только CLUB_MANAGER, поэтому первого
+      # нужно назначить извне (см. app.bootstrap.club-manager-email).
+      - CLUB_MANAGER_EMAIL=${CLUB_MANAGER_EMAIL:-}
       - SPRING_DATASOURCE_URL=jdbc:postgresql://wandering_table_db:5432/postgres
     depends_on:
       - wandering_table_db

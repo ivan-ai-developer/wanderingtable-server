@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
 import java.util.Base64
 import java.util.Date
+import java.util.UUID
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.DurationUnit
@@ -31,6 +32,10 @@ class JwtService(
         val expiryDate = Date(now.time + expiry)
         return Jwts.builder()
             .subject(userId)
+            // Уникальный jti обязателен: claim'ы iat/exp имеют точность до секунды, поэтому
+            // без него два входа одного пользователя в пределах одной секунды давали
+            // побайтово одинаковый токен — и, как следствие, одинаковый хеш в refresh_tokens.
+            .id(UUID.randomUUID().toString())
             .claim("type", type)
             .issuedAt(now)
             .expiration(expiryDate)
