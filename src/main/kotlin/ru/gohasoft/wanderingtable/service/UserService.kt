@@ -9,6 +9,7 @@ import ru.gohasoft.wanderingtable.database.model.ObjectId
 import ru.gohasoft.wanderingtable.database.model.Role
 import ru.gohasoft.wanderingtable.database.model.User
 import ru.gohasoft.wanderingtable.database.repository.UserRepository
+import ru.gohasoft.wanderingtable.security.AuthService
 import kotlin.jvm.optionals.getOrNull
 
 @Service
@@ -18,6 +19,20 @@ class UserService(
 
     fun requireById(userId: ObjectId): User =
         userRepository.findById(userId.value).getOrNull()
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found.")
+
+    /**
+     * Поиск участника клуба по email — единственный способ превратить адрес в идентификатор,
+     * без которого нельзя выдать роль ([updateRoles] принимает id).
+     *
+     * Закрыт ролью заведующего: email — персональные данные, и обычному игроку незачем
+     * проверять, зарегистрирован ли конкретный адрес в клубе.
+     */
+    @PreAuthorize("hasRole('CLUB_MANAGER')")
+    fun requireByEmail(email: String): User =
+        // Через ту же нормализацию, что и регистрация с логином — иначе адрес, сохранённый
+        // с заглавными буквами, не нашёлся бы.
+        userRepository.findByEmail(AuthService.normalizeEmail(email))
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found.")
 
     @Transactional

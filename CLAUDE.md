@@ -22,7 +22,9 @@ docker-compose up -d wandering_table_db   # PostgreSQL 15 on 127.0.0.1:5432
 ./gradlew test --tests '*Concurrent*'      # race-condition tests only
 ```
 
-A JDK 17 toolchain is required. If the default `java` on `PATH` is older, set `JAVA_HOME` to a JDK 17 install before invoking Gradle.
+The daemon JVM is pinned to 17 in `gradle/gradle-daemon-jvm.properties` — same version as the `java.toolchain` this project compiles with and as the `Dockerfile` build stage, so an image build needs no extra JDK, and the foojay resolver in `settings.gradle.kts` lets Gradle download it when the machine has none — so the wrapper works even when the `java` on `PATH` is older, and `JAVA_HOME` need not be set. Regenerate the pin with `./gradlew updateDaemonJvm --jvm-version=<n>` rather than editing the file by hand.
+
+Integration tests run against Testcontainers, so Docker must be running; without it all of them fail at startup with "Could not find a valid Docker environment".
 
 ## Architecture
 

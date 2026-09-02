@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import ru.gohasoft.wanderingtable.controllers.dto.EventResponse
@@ -49,6 +50,17 @@ class UserController(
         pageable: Pageable
     ): PageResponse<EventResponse> =
         gameEventService.history(ObjectId(id), pageable).toResponse { it.toResponse() }
+
+    /**
+     * Поиск участника по email — для выдачи ролей: [updateRoles] работает по id, а заведующий
+     * знает только адрес. Роли возвращаются в ответе намеренно: `PATCH /{id}/roles` заменяет
+     * набор целиком, поэтому клиенту нужен текущий, чтобы добавить роль, а не стереть остальные.
+     *
+     * Доступно только заведующему клуба — см. [UserService.requireByEmail].
+     */
+    @GetMapping(params = ["email"])
+    fun findByEmail(@RequestParam email: String): UserResponse =
+        userService.requireByEmail(email).toResponse()
 
     /** Профиль текущего пользователя вместе со статистикой — один запрос для клиента. */
     @GetMapping("/me")

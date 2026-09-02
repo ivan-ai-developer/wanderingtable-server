@@ -23,6 +23,58 @@ class RolesIntegrationTest : IntegrationTestBase() {
             .containsExactlyInAnyOrder("PLAYER", "GAME_CREATOR", "NEWS_CREATOR")
     }
 
+    @Test
+    fun `club manager finds a member by email and gets their current roles`() {
+        val manager = registerWithRoles("finder@example.com", Role.CLUB_MANAGER)
+        val player = registerWithRoles("findme@example.com", Role.NEWS_CREATOR)
+
+        val result = getJson("/users?email=findme@example.com", manager.accessToken)
+
+        assertThat(result.response.status).isEqualTo(200)
+        assertThat(result.readField("id")).isEqualTo(player.id)
+        // Роли обязаны быть в ответе: без них клиент не сможет добавить роль, не стерев остальные.
+        assertThat(result.jsonTree().get("roles").map { it.asString() })
+            .containsExactlyInAnyOrder("PLAYER", "NEWS_CREATOR")
+    }
+
+    /**
+     * Регистр не должен мешать: адрес хранится нормализованным.
+     *
+     * Пробелы здесь не проверяются — MockMvc не декодирует `%20` в query-строке, и тест ловил бы
+     * собственную кодировку, а не поведение сервера. Обрезка идёт через общий `normalizeEmail`,
+     * который покрыт в `AuthIntegrationTest`.
+     */
+    @Test
+    fun `email lookup ignores case`() {
+        val manager = registerWithRoles("caseinsensitive@example.com", Role.CLUB_MANAGER)
+        val player = registerWithRoles("mixedcase@example.com")
+
+        val result = getJson("/users?email=MixedCase@Example.COM", manager.accessToken)
+
+        assertThat(result.response.status).isEqualTo(200)
+        assertThat(result.readField("id")).isEqualTo(player.id)
+    }
+
+    @Test
+    fun `email lookup answers 404 for an address nobody uses`() {
+        val manager = registerWithRoles("nobody@example.com", Role.CLUB_MANAGER)
+
+        val result = getJson("/users?email=ghost@example.com", manager.accessToken)
+
+        assertThat(result.response.status).isEqualTo(404)
+    }
+
+    /** Email — персональные данные: обычный игрок не должен проверять, кто состоит в клубе. */
+    @Test
+    fun `plain player cannot look a member up by email`() {
+        val player = registerWithRoles("curious@example.com")
+        registerWithRoles("private@example.com")
+
+        val result = getJson("/users?email=private@example.com", player.accessToken)
+
+        assertThat(result.response.status).isEqualTo(403)
+    }
+
     /** Ключевая «проверка на дурака»: без неё все остальные проверки прав декоративны. */
     @Test
     fun `plain player cannot grant roles to themselves`() {
